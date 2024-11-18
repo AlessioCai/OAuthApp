@@ -1,1 +1,62 @@
+import os
+import random
+import string
+import base64
+import hashlib
+import requests
+from urllib.parse import urlencode, parse_qs
+
+# Configurazione del provider OAuth
+client_id = "TUO_CLIENT_ID"
+redirect_uri = "http://localhost:8080/callback"
+authorization_base_url = "https://provider.com/oauth/authorize"
+token_url = "https://provider.com/oauth/token"
+
+# Generazione del code verifier e code challenge
+def generate_code_verifier():
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=64))
+
+def generate_code_challenge(code_verifier):
+    hashed = hashlib.sha256(code_verifier.encode('utf-8')).digest()
+    return base64.urlsafe_b64encode(hashed).rstrip(b'=').decode('utf-8')
+
+code_verifier = generate_code_verifier()
+code_challenge = generate_code_challenge(code_verifier)
+
+# Step 1: Reindirizzare l'utente per l'autenticazione
+authorization_url = f"{authorization_base_url}?{urlencode({
+    'response_type': 'code',
+    'client_id': client_id,
+    'redirect_uri': redirect_uri,
+    'code_challenge': code_challenge,
+    'code_challenge_method': 'S256',
+    'scope': 'openid profile email'
+})}"
+
+print(f"Vai su questo URL per autenticarti: {authorization_url}")
+
+# Step 2: Simulare l'ascolto del redirect URI
+authorization_response = input("Incolla l'intero URL di reindirizzamento qui: ")
+
+# Estrazione del codice di autorizzazione
+query_params = parse_qs(authorization_response.split('?', 1)[1])
+authorization_code = query_params.get('code')[0]
+
+# Step 3: Scambio del codice di autorizzazione con il token di accesso
+token_data = {
+    'grant_type': 'authorization_code',
+    'code': authorization_code,
+    'redirect_uri': redirect_uri,
+    'client_id': client_id,
+    'code_verifier': code_verifier
+}
+
+response = requests.post(token_url, data=token_data)
+response_data = response.json()
+
+if 'access_token' in response_data:
+    access_token = response_data['access_token']
+    print(f"Access Token: {access_token}")
+else:
+    print(f"Errore nell'ottenere il token: {response_data}")
 
