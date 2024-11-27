@@ -1,8 +1,9 @@
+import time
 import webbrowser
 import requests
 from flask import Flask, request, session, redirect, url_for
 from oauth.pkce import generate_pkce
-from oauth.tokens import save_tokens
+from oauth.tokens import load_tokens, save_tokens
 
 # Configurazione
 CLIENT_ID = "399182003500-mpc10pdcanknlsojas0ugvqng2httup0.apps.googleusercontent.com"
@@ -84,3 +85,44 @@ def start_auth_flow():
     """Avvia il server Flask per gestire il flusso di autenticazione."""
     webbrowser.open("http://127.0.0.1:8080/login")
     app.run(port=8080, debug=False)
+
+
+def refresh_access_token(tokens):
+    """Rinnova l'access_token utilizzando il refresh_token."""
+    if "refresh_token" not in tokens:
+        raise ValueError("refresh_token non trovato. È necessario autenticarsi di nuovo.")
+
+    data = {
+        "client_id": CLIENT_ID,
+        "client_secret": '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',
+        "grant_type": "refresh_token",
+        "refresh_token": tokens["refresh_token"],
+    }
+    
+    response = requests.post(TOKEN_URL, data=data)
+    
+    if response.status_code != 200:
+        raise Exception(f"Errore nel rinnovo del token: {response.json()}")
+
+    new_tokens = response.json()
+    # Manteniamo il refresh_token originale se non viene restituito
+    new_tokens["refresh_token"] = new_tokens.get("refresh_token", tokens["refresh_token"])
+    save_tokens(new_tokens)
+    return new_tokens
+
+
+def get_valid_tokens():
+    """Verifica se l'access_token è valido e lo rinnova se necessario."""
+    tokens = load_tokens()
+    if not tokens:
+        return None
+
+    # Controlliamo se il token è scaduto
+    expires_at = tokens.get("expires_at", 0)
+    if time.time() > expires_at:
+        print("Token scaduto, rinnovo in corso...")
+        tokens = refresh_access_token(tokens)
+    else:
+        print("Token valido trovato.")
+
+    return tokens

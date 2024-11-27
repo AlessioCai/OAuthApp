@@ -1,16 +1,14 @@
-from oauth.auth import start_auth_flow
-from oauth.tokens import load_tokens
+from oauth.auth import start_auth_flow, get_valid_tokens
 
 def main():
-    tokens = load_tokens()
+    tokens = get_valid_tokens()
     if tokens:
-        print("Token trovati:")
+        print("Token validi trovati:")
         print(tokens)
     else:
-        print("Nessun token trovato. Avvio dell'autenticazione...")
+        print("Nessun token valido trovato. Avvio dell'autenticazione...")
         start_auth_flow()
         print("Flusso di autenticazione completato.")
 
 if __name__ == "__main__":
     main()
-

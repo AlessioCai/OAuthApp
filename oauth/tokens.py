@@ -1,5 +1,6 @@
 import os
 import json
+import time
 from cryptography.fernet import Fernet
 
 TOKEN_FILE = "tokens.enc"
@@ -20,13 +21,20 @@ def load_key():
         return f.read()
 
 def save_tokens(tokens):
-    """Cifra e salva i token."""
+    """Cifra e salva i token, includendo il tempo di scadenza."""
     generate_key()  # Assicurati che la chiave esista
     key = load_key()
     fernet = Fernet(key)
+
+    # Calcoliamo il tempo di scadenza (se fornito)
+    expires_in = tokens.get("expires_in", 3600)  # Default: 1 ora
+    tokens["expires_at"] = int(time.time()) + expires_in
+
     encrypted_data = fernet.encrypt(json.dumps(tokens).encode("utf-8"))
     with open(TOKEN_FILE, "wb") as f:
         f.write(encrypted_data)
+
+
 
 def load_tokens():
     """Carica e decifra i token salvati."""
