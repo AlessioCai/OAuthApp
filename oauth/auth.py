@@ -94,7 +94,7 @@ def refresh_access_token(tokens):
 
     data = {
         "client_id": CLIENT_ID,
-        "client_secret": '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',
+        "client_secret": 'da gestire, non permette di pusharlo, usare variabile env',
         "grant_type": "refresh_token",
         "refresh_token": tokens["refresh_token"],
     }
