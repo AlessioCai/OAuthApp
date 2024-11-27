@@ -8,8 +8,9 @@ def main():
         print(tokens)
     else:
         print("Nessun token trovato. Avvio dell'autenticazione...")
-        code_verifier = start_auth_flow()
+        start_auth_flow()
         print("Flusso di autenticazione completato.")
 
 if __name__ == "__main__":
     main()
+

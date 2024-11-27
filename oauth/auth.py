@@ -1,9 +1,8 @@
 import webbrowser
 import requests
-from flask import Flask, request
-from threading import Timer
+from flask import Flask, request, session, redirect, url_for
 from oauth.pkce import generate_pkce
-from oauth.tokens import save_tokens, load_tokens
+from oauth.tokens import save_tokens
 
 # Configurazione
 CLIENT_ID = "399182003500-mpc10pdcanknlsojas0ugvqng2httup0.apps.googleusercontent.com"
@@ -14,22 +13,17 @@ SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.profile", "https:/
 
 # Flask app per gestire il callback
 app = Flask(__name__)
-
-@app.route("/callback")
-def callback():
-    """Gestisce il redirect e scambia il codice per i token."""
-    auth_code = request.args.get("code")
-    if not auth_code:
-        return "Errore: Nessun codice di autorizzazione ricevuto.", 400
-    
-    # Passa il code_verifier insieme al codice di autorizzazione
-    tokens = exchange_code_for_token(auth_code, code_verifier)
-    return "Autenticazione completata con successo!", 200
+app.secret_key = "your_secret_key"  # Necessario per sessioni Flask
 
 
-def build_authorization_url():
-    """Crea l'URL di autorizzazione usando PKCE."""
+@app.route('/login', methods=['GET'])
+def login():
+    """Inizia il flusso di autenticazione."""
+    # Genera il code_verifier e il code_challenge
     code_challenge, code_verifier = generate_pkce()
+    session['code_verifier'] = code_verifier  # Salva il code_verifier nella sessione
+
+    # Costruisci l'URL di autorizzazione
     url = (
         f"{AUTH_URL}?response_type=code"
         f"&client_id={CLIENT_ID}"
@@ -38,7 +32,35 @@ def build_authorization_url():
         f"&code_challenge={code_challenge}"
         f"&code_challenge_method=S256"
     )
-    return url, code_verifier
+    return redirect(url)
+
+
+@app.route('/callback', methods=['GET'])
+def callback():
+    """Gestisce il redirect e scambia il codice per i token."""
+    auth_code = request.args.get("code")
+    if not auth_code:
+        return "Errore: Nessun codice di autorizzazione ricevuto.", 400
+
+    # Recupera il code_verifier dalla sessione
+    code_verifier = session.get('code_verifier')
+    if not code_verifier:
+        return "Errore: code_verifier non trovato nella sessione.", 400
+
+    # Scambia il codice di autorizzazione per i token
+    tokens = exchange_code_for_token(auth_code, code_verifier)
+    session['access_token'] = tokens.get('access_token')
+    session['refresh_token'] = tokens.get('refresh_token')
+
+    return redirect(url_for('index'))
+
+
+@app.route('/')
+def index():
+    """Pagina iniziale, verifica se l'utente è autenticato."""
+    if 'access_token' not in session:
+        return redirect(url_for('login'))
+    return "Sei autenticato!"
 
 
 def exchange_code_for_token(auth_code, code_verifier):
@@ -57,10 +79,8 @@ def exchange_code_for_token(auth_code, code_verifier):
         return tokens
     return {"error": "Errore durante lo scambio del codice."}
 
-def start_auth_flow():
-    """Avvia il flusso di autenticazione."""
-    url, code_verifier = build_authorization_url()
-    Timer(1, webbrowser.open, args=(url,)).start()
-    app.run(port=8080, debug=False)
-    return code_verifier  # Restituisce il code_verifier per usarlo nel callback
 
+def start_auth_flow():
+    """Avvia il server Flask per gestire il flusso di autenticazione."""
+    webbrowser.open("http://127.0.0.1:8080/login")
+    app.run(port=8080, debug=False)
