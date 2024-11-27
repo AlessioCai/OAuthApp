@@ -13,7 +13,7 @@ SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.profile", "https:/
 
 # Flask app per gestire il callback
 app = Flask(__name__)
-app.secret_key = "your_secret_key"  # Necessario per sessioni Flask
+app.secret_key = "3d6f45adffefschjkc12445ddejdkei59c3b6c7cb1"  # Necessario per sessioni Flask
 
 
 @app.route('/login', methods=['GET'])
@@ -60,7 +60,7 @@ def index():
     """Pagina iniziale, verifica se l'utente è autenticato."""
     if 'access_token' not in session:
         return redirect(url_for('login'))
-    return "Sei autenticato!"
+    return "Sei autenticato correttamente!"
 
 
 def exchange_code_for_token(auth_code, code_verifier):
