@@ -2,27 +2,31 @@ import os
 import json
 import time
 from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+
+# Carica variabili d'ambiente dal file .env
+load_dotenv()
 
 TOKEN_FILE = "tokens.enc"
-KEY_FILE = "secret.key"
 
 def generate_key():
     """Genera una chiave crittografica se non esiste già."""
-    if not os.path.exists(KEY_FILE):
-        key = Fernet.generate_key()
-        with open(KEY_FILE, "wb") as f:
-            f.write(key)
+    key = Fernet.generate_key()
+    print("ATTENZIONE: Chiave generata. Salvala in modo sicuro!")
+    print(f"Chiave: {key.decode('utf-8')}")
+    return key
 
 def load_key():
-    """Carica la chiave crittografica."""
-    if not os.path.exists(KEY_FILE):
-        raise FileNotFoundError("Chiave non trovata! Generala con generate_key().")
-    with open(KEY_FILE, "rb") as f:
-        return f.read()
+    """Carica la chiave crittografica dalle variabili d'ambiente."""
+    key = os.getenv("SECRET_KEY")
+    if not key:
+        raise ValueError(
+            "Chiave crittografica non trovata! Assicurati che la variabile d'ambiente 'SECRET_KEY' sia configurata."
+        )
+    return key.encode("utf-8")
 
 def save_tokens(tokens):
-    """Cifra e salva i token, includendo il tempo di scadenza."""
-    generate_key()  # Assicurati che la chiave esista
+    """Cifra e salva i token."""
     key = load_key()
     fernet = Fernet(key)
 
@@ -33,8 +37,6 @@ def save_tokens(tokens):
     encrypted_data = fernet.encrypt(json.dumps(tokens).encode("utf-8"))
     with open(TOKEN_FILE, "wb") as f:
         f.write(encrypted_data)
-
-
 
 def load_tokens():
     """Carica e decifra i token salvati."""

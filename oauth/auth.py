@@ -4,17 +4,41 @@ import requests
 from flask import Flask, request, session, redirect, url_for
 from oauth.pkce import generate_pkce
 from oauth.tokens import load_tokens, save_tokens
+from dotenv import load_dotenv
+import os
 
-# Configurazione
-CLIENT_ID = "399182003500-mpc10pdcanknlsojas0ugvqng2httup0.apps.googleusercontent.com"
+load_dotenv()
+
+# Configurazione tramite .env
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
-REDIRECT_URI = "http://127.0.0.1:8080/callback"
 SCOPES = ["openid", "https://www.googleapis.com/auth/userinfo.profile", "https://www.googleapis.com/auth/userinfo.email"]
+
+
+# Percorso del file della whitelist
+WHITELIST_FILE = "whitelist.txt"
+
+def load_whitelist():
+    """Carica la whitelist di email da un file."""
+    if not os.path.exists(WHITELIST_FILE):
+        raise FileNotFoundError(f"File whitelist non trovato: {WHITELIST_FILE}")
+    with open(WHITELIST_FILE, "r") as f:
+        # Restituisce un set di email autorizzate
+        return {line.strip() for line in f if line.strip()}
+
+# Carica la whitelist all'avvio dell'app
+try:
+    WHITELIST_EMAILS = load_whitelist()
+except FileNotFoundError as e:
+    print(e)
+    WHITELIST_EMAILS = set()
 
 # Flask app per gestire il callback
 app = Flask(__name__)
-app.secret_key = "3d6f45adffefschjkc12445ddejdkei59c3b6c7cb1"  # Necessario per sessioni Flask
+app.secret_key = os.getenv("FLASK_SECRET_KEY")  # Chiave per sessione Flask (da .env)
 
 
 @app.route('/login', methods=['GET'])
@@ -49,11 +73,39 @@ def callback():
         return "Errore: code_verifier non trovato nella sessione.", 400
 
     # Scambia il codice di autorizzazione per i token
-    tokens = exchange_code_for_token(auth_code, code_verifier)
-    session['access_token'] = tokens.get('access_token')
-    session['refresh_token'] = tokens.get('refresh_token')
+    data = {
+        "code": auth_code,
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "redirect_uri": REDIRECT_URI,
+        "grant_type": "authorization_code",
+        "code_verifier": code_verifier,
+    }
+    response = requests.post(TOKEN_URL, data=data)
+    if response.status_code != 200:
+        return f"Errore durante lo scambio del codice: {response.json()}", 400
 
-    return redirect(url_for('index'))
+    tokens = response.json()
+    access_token = tokens.get("access_token")
+
+    # Recupera i dati del profilo utente
+    userinfo_response = requests.get(
+        "https://www.googleapis.com/oauth2/v3/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    if userinfo_response.status_code != 200:
+        return f"Errore nel recupero delle informazioni utente: {userinfo_response.json()}", 400
+
+    userinfo = userinfo_response.json()
+    user_email = userinfo.get("email")
+
+    # Verifica se l'email è nella whitelist
+    if user_email not in WHITELIST_EMAILS:
+        return "Accesso negato: l'email non è autorizzata.", 403
+
+    # Salva i token se l'email è autorizzata
+    save_tokens(tokens)
+    return f"Autenticazione completata per {user_email}.", 200
 
 
 @app.route('/')
